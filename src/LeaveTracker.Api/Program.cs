@@ -7,6 +7,9 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 builder.Services.AddScoped<HealthRepository>();
+builder.Services.AddScoped<LeaveRequestRepository>();
+
+Dapper.SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
 
 var app = builder.Build();
 
