@@ -4,3 +4,20 @@ GET {{LeaveTracker.Api_HostAddress}}/health
 Accept: application/json
 
 ###
+
+POST {{LeaveTracker.Api_HostAddress}}/employees/1/leave-requests
+Content-Type: application/json
+
+{
+  "startDate": "2026-11-02",
+  "endDate": "2026-11-06",
+  "leaveType": "Annual",
+  "reason": "Family trip"
+}
+
+###
+
+GET {{LeaveTracker.Api_HostAddress}}/employees/1/leave-requests/1
+Accept: application/json
+
+###
