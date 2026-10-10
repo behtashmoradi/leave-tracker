@@ -1,0 +1,8 @@
+CREATE TABLE dbo.Employees
+(
+    Id         INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Employees PRIMARY KEY,
+    FirstName  NVARCHAR(100)     NOT NULL,
+    LastName   NVARCHAR(100)     NOT NULL,
+    Email      NVARCHAR(256)     NOT NULL CONSTRAINT UQ_Employees_Email UNIQUE,
+    CreatedAt  DATETIME2(3)      NOT NULL CONSTRAINT DF_Employees_CreatedAt DEFAULT SYSUTCDATETIME()
+);

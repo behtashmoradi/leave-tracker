@@ -1,0 +1,6 @@
+@LeaveTracker.Api_HostAddress = http://localhost:5182
+
+GET {{LeaveTracker.Api_HostAddress}}/health
+Accept: application/json
+
+###
