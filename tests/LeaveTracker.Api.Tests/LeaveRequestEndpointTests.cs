@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using LeaveTracker.Api.Controllers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LeaveTracker.Api.Tests;
@@ -126,6 +127,77 @@ public sealed class LeaveRequestEndpointTests(ApiFactory factory) : IClassFixtur
 
         Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
     }
+
+    [Fact]
+    public async Task Submit_overlapping_a_pending_request_returns_conflict()
+    {
+        var employeeId = await factory.CreateEmployeeAsync();
+        await SubmitAsync(employeeId, Tomorrow, Tomorrow.AddDays(4));
+
+        var response = await SubmitAsync(employeeId, Tomorrow.AddDays(2), Tomorrow.AddDays(6));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal(StatusCodes.Status409Conflict, problem?.Status);
+    }
+
+    [Fact]
+    public async Task Submit_sharing_a_single_day_with_an_existing_request_returns_conflict()
+    {
+        var employeeId = await factory.CreateEmployeeAsync();
+        await SubmitAsync(employeeId, Tomorrow, Tomorrow.AddDays(4));
+
+        var response = await SubmitAsync(employeeId, Tomorrow.AddDays(4), Tomorrow.AddDays(5));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Submit_adjacent_to_an_existing_request_returns_created()
+    {
+        var employeeId = await factory.CreateEmployeeAsync();
+        await SubmitAsync(employeeId, Tomorrow, Tomorrow.AddDays(4));
+
+        var response = await SubmitAsync(employeeId, Tomorrow.AddDays(5), Tomorrow.AddDays(6));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Submit_overlapping_another_employees_request_returns_created()
+    {
+        var employeeId = await factory.CreateEmployeeAsync();
+        var colleagueId = await factory.CreateEmployeeAsync();
+        await SubmitAsync(colleagueId, Tomorrow, Tomorrow.AddDays(4));
+
+        var response = await SubmitAsync(employeeId, Tomorrow, Tomorrow.AddDays(4));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Approved", HttpStatusCode.Conflict)]
+    [InlineData("Rejected", HttpStatusCode.Created)]
+    [InlineData("Cancelled", HttpStatusCode.Created)]
+    public async Task Submit_overlapping_a_request_depends_on_its_status(string existingStatus, HttpStatusCode expected)
+    {
+        var employeeId = await factory.CreateEmployeeAsync();
+        var existing = await SubmitAsync(employeeId, Tomorrow, Tomorrow.AddDays(4));
+        var existingId = (await existing.Content.ReadFromJsonAsync<LeaveRequestResponse>())!.Id;
+        await factory.SetLeaveRequestStatusAsync(existingId, existingStatus);
+
+        var response = await SubmitAsync(employeeId, Tomorrow.AddDays(1), Tomorrow.AddDays(2));
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> SubmitAsync(int employeeId, DateOnly startDate, DateOnly endDate) =>
+        _client.PostAsJsonAsync($"/employees/{employeeId}/leave-requests", new
+        {
+            startDate,
+            endDate,
+            leaveType = "Annual"
+        });
 
     private async Task<IDictionary<string, string[]>> SubmitExpectingValidationErrors(int employeeId, object body)
     {
