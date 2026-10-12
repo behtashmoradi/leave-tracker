@@ -15,17 +15,25 @@ public sealed class LeaveRequestRepository(ISqlConnectionFactory connectionFacto
             cancellationToken: cancellationToken));
     }
 
-    public async Task<LeaveRequest> CreateAsync(
+    // Returns null, inserting nothing, when the dates overlap one of the employee's Pending or Approved requests.
+    // The check and insert are one statement; UPDLOCK + HOLDLOCK stop two concurrent submissions both passing the check.
+    public async Task<LeaveRequest?> CreateAsync(
         int employeeId, DateOnly startDate, DateOnly endDate, string leaveType, string? reason,
         CancellationToken cancellationToken)
     {
         await using var connection = connectionFactory.Create();
-        return await connection.QuerySingleAsync<LeaveRequest>(new CommandDefinition(
+        return await connection.QuerySingleOrDefaultAsync<LeaveRequest>(new CommandDefinition(
             """
             INSERT INTO dbo.LeaveRequests (EmployeeId, StartDate, EndDate, LeaveType, Reason)
             OUTPUT INSERTED.Id, INSERTED.EmployeeId, INSERTED.StartDate, INSERTED.EndDate,
                    INSERTED.LeaveType, INSERTED.Status, INSERTED.Reason, INSERTED.CreatedAt
-            VALUES (@EmployeeId, @StartDate, @EndDate, @LeaveType, @Reason)
+            SELECT @EmployeeId, @StartDate, @EndDate, @LeaveType, @Reason
+            WHERE NOT EXISTS (
+                SELECT 1 FROM dbo.LeaveRequests WITH (UPDLOCK, HOLDLOCK)
+                WHERE EmployeeId = @EmployeeId
+                  AND Status IN (N'Pending', N'Approved')
+                  AND StartDate <= @EndDate
+                  AND EndDate >= @StartDate)
             """,
             new { EmployeeId = employeeId, StartDate = startDate, EndDate = endDate, LeaveType = leaveType, Reason = reason },
             cancellationToken: cancellationToken));

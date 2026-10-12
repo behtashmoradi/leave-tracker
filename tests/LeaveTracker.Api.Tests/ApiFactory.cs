@@ -36,6 +36,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             new { Email = $"{Guid.NewGuid():N}@example.com" });
     }
 
+    // There is no endpoint for changing a request's status yet.
+    public async Task SetLeaveRequestStatusAsync(int leaveRequestId, string status)
+    {
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.ExecuteAsync(
+            "UPDATE dbo.LeaveRequests SET Status = @Status WHERE Id = @Id",
+            new { Id = leaveRequestId, Status = status });
+    }
+
     public Task InitializeAsync() => _sqlContainer.StartAsync();
 
     async Task IAsyncLifetime.DisposeAsync()

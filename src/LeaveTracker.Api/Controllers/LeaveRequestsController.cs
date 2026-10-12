@@ -12,6 +12,7 @@ public sealed class LeaveRequestsController(LeaveRequestRepository leaveRequestR
     [ProducesResponseType<LeaveRequestResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Submit(int employeeId, SubmitLeaveRequest request, CancellationToken cancellationToken)
     {
         if (!await leaveRequestRepository.EmployeeExistsAsync(employeeId, cancellationToken))
@@ -27,6 +28,13 @@ public sealed class LeaveRequestsController(LeaveRequestRepository leaveRequestR
             LeaveTypes.Normalize(request.LeaveType)!,
             string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(),
             cancellationToken);
+
+        if (created is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                detail: "The requested dates overlap an existing pending or approved leave request.");
+        }
 
         return CreatedAtAction(nameof(Get), new { employeeId, id = created.Id }, LeaveRequestResponse.From(created));
     }
